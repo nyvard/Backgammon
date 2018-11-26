@@ -33,51 +33,22 @@ critic = torch.nn.Sequential(
     torch.nn.Tanh(),
 )
 
-critic.load_state_dict(torch.load("critic_nn"))
-actor.load_state_dict(torch.load("actor_nn"))
+#critic.load_state_dict(torch.load("critic_nn"))
+#actor.load_state_dict(torch.load("actor_nn"))
+#critic.load_state_dict(torch.load("critic_nn_nott.pth"))
+#actor.load_state_dict(torch.load("actor_nn_nott.pth"))
+critic.load_state_dict(torch.load("critic_nn_greedy.pth"))
+#actor.load_state_dict(torch.load("actor_nn_greedy.pth"))
 
 
 #######
 
-def get_action_and_value(actor, boards):
-    boards = torch.from_numpy(boards).float()
-    possible_actions_probs = actor(boards)
-    with torch.no_grad():
-        action = int(torch.multinomial(possible_actions_probs.view(1,-1), 1))
-    action_value = possible_actions_probs[action]
-    return action, action_value
-
-def get_action_value(actor, boards, action):
-    boards = torch.from_numpy(boards).float()
-    possible_actions_probs = actor(boards)
-    action_value = possible_actions_probs[action]
-    return action_value
-
 def get_action(actor, boards):
-    """
     with torch.no_grad():
-        print("hall")
         boards = torch.from_numpy(np.array(boards)).float()
         possible_actions_probs = actor(boards)
         action = torch.multinomial(possible_actions_probs.view(1,-1), 1)
-    """
-    action = 0
-    print(boards)
     return int(action)
-
-def get_state_value(nn_model, after_state):
-    after_state = torch.from_numpy(after_state).float()
-    value = nn_model(after_state)
-    return value
-
-def epsilon_greedy(critic, possible_boards, epsilon=1):
-    possible_boards = torch.from_numpy(possible_boards).float()
-    values = critic(possible_boards)
-    if np.random.random()<epsilon:
-        _ , index = values.max(0)
-    else:
-        index = np.random.randint(0, len(possible_boards))
-    return int(index)
 
 def e_legal_moves(board, dice, player=1):
         moves, boards = B.legal_moves(board, dice = dice, player = player)
@@ -88,8 +59,16 @@ def e_legal_moves(board, dice, player=1):
         for b in range(n_boards):
             tesauro[b,:] = features(boards[b], player)
         tesauro = np.array(tesauro)
-        print(tesauro)
         return moves, tesauro
+    
+def epsilon_greedy(critic, possible_boards, epsilon=1):
+    possible_boards = torch.from_numpy(possible_boards).float()
+    values = critic(possible_boards)
+    if np.random.random()<epsilon:
+        _ , index = values.max(0)
+    else:
+        index = np.random.randint(0, len(possible_boards))
+    return int(index)
 
 #######
 
@@ -146,12 +125,14 @@ def action(board, dice, oplayer):
         player = -oplayer # player now the other player +1
     else:
         player = oplayer
-    for i in range(1 + int(dice[0] == dice[1])):
-        possible_moves, possible_boards = e_legal_moves(board, dice, 1)
-        if len(possible_moves) == 0:
-            break
-            action = []
-        action = get_action(actor, possible_boards)
+    possible_moves, possible_boards = e_legal_moves(board, dice, 1)
+    if len(possible_moves) == 0:
+        return []
+    #index = get_action(actor, possible_boards)
+    index = epsilon_greedy(critic, possible_boards)
+    action = possible_moves[index]
+    #print("ACTION")
+    #print(action)
     if (flippedplayer == oplayer): # map this move to right view
         action = flipped_agent.flip_move(action)
     return action
